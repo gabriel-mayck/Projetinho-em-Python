@@ -12,7 +12,7 @@ BG, PAINEL, CAMPO, FG, CINZA, DESTAQUE = "#1e1e2e", "#2a2a3d", "#33334a", "#e6e6
 CARDS_POR_LINHA = 5
 
 
-# ---------------------------- MODELO (as regras do sistema) ----------------------------
+# ============================= MODELO (as regras do sistema) =============================
 class Livro:
     def __init__(self, codigo, titulo, autor):
         self.codigo, self.titulo, self.autor = codigo, titulo,  autor
@@ -23,7 +23,7 @@ class Usuario:
         self.matricula, self.nome = matricula, nome
 
 class Emprestimo:
-    # liga o livro ao usuario
+    # liga o livro ao usuario (é a classe "relacionada": ela guarda um Livro e um Usuario)
 
     def __init__(self, livro, usuario):
         self.livro, self.usuario = livro, usuario
@@ -42,6 +42,8 @@ class Emprestimo:
         self.livro.disponivel = True
         return self.calcular_multa()
 
+
+# ---- BIBLIOTECA (guarda tudo e valida as ações) ----
 class Biblioteca:
     """Guarda tudo (livros, usuários, empréstimos) e valida as ações."""
 
@@ -86,11 +88,12 @@ class Biblioteca:
             raise ValueError("Esse empréstimo já foi devolvido.")
         return emprestimo.devolver(data)
 
-# ---------------------------- WEB SCRAPING ----------------------------
+# ============================ WEB SCRAPING ===============================
 class BuscadorLivros:
     """Web scraping na Wikipédia (pt): 1) baixa o HTML  2) lê com BeautifulSoup
     3) pega o resumo (1º parágrafo) e os dados da caixa de informações."""
     SITE = "https://pt.wikipedia.org"
+    # Só mostramos na janelinha os dados da caixa de informações que começam com estas palavras
     DADOS = ("Autor", "Gênero", "Género", "País", "Idioma", "Língua",
              "Lançamento", "Publicação", "Páginas", "Editora")
 
@@ -107,7 +110,9 @@ class BuscadorLivros:
         # tira as notas de rodapé, ex.: [1], e espaços sobrando
         return re.sub(r"\s+", " ", re.sub(r"\[[^\]]*\]", "", texto)).strip()
 
+
     def buscar(self, titulo):
+        #  1 Pesquisa o título na Wikipédia
         sopa, link = self.baixar(self.SITE + "/w/index.php", {"search": titulo})
         primeiro = sopa.select_one(".mw-search-result-heading a")   # lista de resultados? abre o 1º
         if primeiro:
@@ -116,6 +121,8 @@ class BuscadorLivros:
         if cabecalho is None or sopa.select_one(".mw-search-nonefound"):
             raise ValueError("Nenhuma informação encontrada para esse título.")
 
+
+        # PASSO 2: resumo = primeiro parágrafo com mais de 60 letras
         sinopse = "Resumo não disponível."                          # 1º parágrafo grande da página
         for p in sopa.select("#mw-content-text .mw-parser-output > p"):
             texto = self.limpar(p.get_text())
@@ -123,6 +130,8 @@ class BuscadorLivros:
                 sinopse = texto[:700] + ("..." if len(texto) > 700 else "")
                 break
 
+
+        # PASSO 3: dados da caixa de informações (Autor, Gênero, País...)
         detalhes = []                                               # caixa de informações (Autor, Gênero...)
         for linha in sopa.select("table.infobox tr"):
             rotulo, valor = linha.find("th"), linha.find("td")
@@ -131,7 +140,7 @@ class BuscadorLivros:
         return {"titulo": cabecalho.get_text(strip=True), "sinopse": sinopse, "detalhes": detalhes, "link": link}
 
 
-# ---------------------------- TELAS ----------------------------
+# ================================== TELAS ======================================
 def label(pai, texto, bg=BG, fg=FG, **opcoes):
     return tk.Label(pai, text=texto, bg=bg, fg=fg, **opcoes)
 
@@ -141,7 +150,7 @@ def resumir(texto, limite):
     return texto if len(texto) <= limite else texto[:limite - 1] + "…"
 
 
-class App(tk.Tk):
+class App(tk.Tk):               # App É a janela principal (herda de tk.Tk)
     def __init__(self):
         super().__init__()
         self.title("Sistema de Biblioteca")
@@ -149,46 +158,59 @@ class App(tk.Tk):
         self.aplicar_tema_escuro()
         self.bib, self.buscador = Biblioteca(), BuscadorLivros()
 
-        # dados de exemplo
+        # ==============dados de exemplo, aparece quando o programa abre==================
         self.bib.cadastrar_livro("L1", "Dom Casmurro", "Machado de Assis")
         self.bib.cadastrar_livro("L2", "O Cortiço", "Aluísio Azevedo")
         self.bib.cadastrar_usuario("U1", "Maria Silva")
 
-        # abas
+        # ---- ABAS (Livros / Usuários / Empréstimos) ----
         abas = ttk.Notebook(self)
         abas.pack(fill="both", expand=True, padx=8, pady=8)
         self.aba_livros, self.aba_usuarios, self.aba_emprestimos = [ttk.Frame(abas) for _ in range(3)]
         for aba, nome in ((self.aba_livros, "Livros"), (self.aba_usuarios, "Usuários"),
                           (self.aba_emprestimos, "Empréstimos")):
+
             abas.add(aba, text=nome)
-        self.montar_livros()
+        self.montar_livros() # desenha o conteúdo de cada aba
         self.montar_usuarios()
         self.montar_emprestimos()
-        self.atualizar()
+        self.atualizar() # preenche tabelas e cards com os dados
 
+
+    # =================== TEMA ESCURO =================
     def aplicar_tema_escuro(self):
         self.configure(bg=BG)
         st = ttk.Style(self)
-        st.theme_use("clam")  # tema que aceita mudar as cores
+        st.theme_use("clam")
+
+        # tema que aceita mudar as cores
         st.configure(".", background=BG, foreground=FG, fieldbackground=CAMPO, bordercolor=PAINEL,
                      lightcolor=PAINEL, darkcolor=PAINEL, troughcolor=PAINEL, font=("Segoe UI", 10))
-        st.configure("TNotebook", background=BG, borderwidth=0)
-        st.configure("TNotebook.Tab", background=PAINEL, foreground=FG, padding=(14, 6))
-        st.configure("TButton", background=PAINEL, foreground=FG, padding=5)
-        st.configure("TEntry", fieldbackground=CAMPO, foreground=FG, insertcolor=FG)
-        st.configure("TCombobox", fieldbackground=CAMPO, background=PAINEL, foreground=FG, arrowcolor=FG)
-        st.configure("Treeview", background=PAINEL, fieldbackground=PAINEL, foreground=FG, rowheight=26, borderwidth=0)
-        st.configure("Treeview.Heading", background=BG, foreground=FG, relief="flat", font=("Segoe UI", 10, "bold"))
+        st.configure("TNotebook", background=BG, borderwidth=0)                                               # barra das abas
+        st.configure("TNotebook.Tab", background=PAINEL, foreground=FG, padding=(14, 6))                      # cada aba
+        st.configure("TButton", background=PAINEL, foreground=FG, padding=5)                                  # botões
+        st.configure("TEntry", fieldbackground=CAMPO, foreground=FG, insertcolor=FG)                          # caixinhas de texto
+        st.configure("TCombobox", fieldbackground=CAMPO, background=PAINEL, foreground=FG, arrowcolor=FG)     # listas suspensas
+        st.configure("Treeview", background=PAINEL, fieldbackground=PAINEL, foreground=FG, rowheight=26, borderwidth=0)   # tabelas
+        st.configure("Treeview.Heading", background=BG, foreground=FG, relief="flat", font=("Segoe UI", 10, "bold")) # cabeçalho
+
+        # >>>>>> ESTE LAÇO É O QUE DEIXA AZUL (DESTAQUE) <<<<<<
+
         # cor azul quando o item está selecionado / com o mouse em cima
         for estilo, estado in (("TNotebook.Tab", "selected"), ("TButton", "active"), ("Treeview", "selected")):
             st.map(estilo, background=[(estado, DESTAQUE)], foreground=[(estado, "white")])
+
+
+            # Combobox (lista suspensa de Livro/Usuário na aba Empréstimos): mantém o fundo escuro
         st.map("TCombobox", fieldbackground=[("readonly", CAMPO)], foreground=[("readonly", FG)],
                selectbackground=[("readonly", CAMPO)], selectforeground=[("readonly", FG)])
+
         # cores da lista que abre no combobox
         for opcao, cor in (("background", CAMPO), ("foreground", FG), ("selectBackground", DESTAQUE)):
             self.option_add(f"*TCombobox*Listbox.{opcao}", cor)
 
-    # ---- funções auxiliares ----
+
+    # ================= FUNÇÕES AUXILIARES ========================
     def campo(self, pai, rotulo, col):
         """Cria um rótulo + caixinha de texto lado a lado."""
         ttk.Label(pai, text=rotulo).grid(row=0, column=col * 2, padx=4, pady=6)
@@ -217,7 +239,7 @@ class App(tk.Tk):
 
     def remover(self, pergunta, funcao, chave):
         """Pergunta Sim/Não e, se for Sim, chama a função de remoção."""
-        if not messagebox.askyesno("Confirmar", pergunta):
+        if not messagebox.askyesno("Confirmar", pergunta):   # caixinha de Sim/Não (return, "nao" nao acontece nada)
             return
         try:
             funcao(chave)
@@ -225,7 +247,7 @@ class App(tk.Tk):
             return messagebox.showwarning("Atenção", str(erro))
         self.atualizar()
 
-    # ---- montagem das abas ----
+    # ================= JANELA / CAMPOS: LIVROS =================
     def montar_livros(self):
         f = ttk.Frame(self.aba_livros)
         f.pack(fill="x")
@@ -245,6 +267,8 @@ class App(tk.Tk):
         self.canvas.create_window((0, 0), window=self.frame_cards, anchor="nw")
         self.frame_cards.bind("<Configure>", lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all")))
 
+
+    # ================= JANELA / ABA: USUÁRIOS =================
     def montar_usuarios(self):
         f = ttk.Frame(self.aba_usuarios)
         f.pack(fill="x")
@@ -255,6 +279,8 @@ class App(tk.Tk):
             row=1, column=0, columnspan=2, padx=6, pady=2, sticky="w")
         self.t_usuarios = self.tabela(self.aba_usuarios, ("Matrícula", "Nome"))
 
+
+    # ================= JANELA / ABA: EMPRÉSTIMOS =================
     def montar_emprestimos(self):
         f = ttk.Frame(self.aba_emprestimos)
         f.pack(fill="x")
@@ -269,13 +295,16 @@ class App(tk.Tk):
         f2 = ttk.Frame(self.aba_emprestimos)
         f2.pack(fill="x")
         ttk.Label(f2, text="Data devolução (dd/mm/aaaa, vazio = hoje)").grid(row=0, column=0, padx=4)
-        self.e_data = ttk.Entry(f2, width=12)
+        self.e_data = ttk.Entry(f2, width=12)             # caixinha da data (vazia = devolve hoje)
         self.e_data.grid(row=0, column=1)
         ttk.Button(f2, text="Devolver selecionado", command=self.devolver).grid(row=0, column=2, padx=6)
+
+        # ============= TABELA DE INFORMAÇÕES DE EMPRESTIMOS ==================
         self.t_emp = self.tabela(self.aba_emprestimos,
                                  ("Livro", "Usuário", "Empréstimo", "Prevista", "Devolução", "Multa"))
 
-    # ---- desenho dos cards ----
+
+    # ================= CARDS DOS LIVROS (e os ÍCONES) =================
     def desenhar_cards(self):
         for w in self.frame_cards.winfo_children():   # apaga os cards antigos e desenha tudo de novo
             w.destroy()
@@ -287,7 +316,8 @@ class App(tk.Tk):
             capa = tk.Frame(card, bg=CAMPO, width=120, height=110)
             capa.pack_propagate(False)
             capa.pack()
-            label(capa, "📖", CAMPO, font=("Segoe UI Emoji", 32)).pack(expand=True)
+            label(capa, "📖", CAMPO, font=("Segoe UI Emoji", 35)).pack(expand=True)
+
 
             # width/height fixos (em caracteres/linhas) deixam todos os cards iguais
             label(card, resumir(livro.titulo, 36), PAINEL, width=16, height=2, wraplength=120,
@@ -298,13 +328,14 @@ class App(tk.Tk):
             else:
                 label(card, "Emprestado", PAINEL, "#ef5350").pack()    # vermelho
 
-            # botões embaixo do card (livro=livro "prende" o livro certo em cada botão)
+            # ==============ÍCONES DOS BOTÕES: (pesquisar) e (remover)============
             ttk.Button(card, text="🔍 Pesquisar na web",
                        command=lambda livro=livro: self.buscar_web(livro)).pack(fill="x", pady=(6, 2))
             ttk.Button(card, text="🗑 Remover", command=lambda livro=livro: self.remover(
                 f'Deseja remover o livro "{livro.titulo}"?', self.bib.remover_livro, livro.codigo)).pack(fill="x")
 
-    # ---- janelinha com as informações do livro ----
+
+    # ================= JANELINHA COM AS INFORMAÇÕES DO LIVRO =================
     def mostrar_info(self, info):
         janela = tk.Toplevel(self, bg=BG, padx=16, pady=16)
         janela.title("Informações do livro")
@@ -318,7 +349,8 @@ class App(tk.Tk):
         label(janela, f"Fonte: {info['link']}", fg=CINZA, **txt).pack(anchor="w", pady=(12, 0))
         ttk.Button(janela, text="Fechar", command=janela.destroy).pack(pady=(12, 0))
 
-    # ---- ações dos botões ----
+
+    # ================= Ação dos Botões =================
     def buscar_web(self, livro):
         self.config(cursor="watch")   # mostra o "relógio" do mouse enquanto busca
         self.update_idletasks()
@@ -359,7 +391,7 @@ class App(tk.Tk):
         messagebox.showinfo("Devolvido", f"Multa: R$ {multa:.2f}")
         self.atualizar()
 
-    # ---- atualiza tudo na tela depois de qualquer mudança ----
+    # ================= ATUALIZA TUDO NA TELA =================
     def atualizar(self):
         self.desenhar_cards()
         for t in (self.t_usuarios, self.t_emp):
