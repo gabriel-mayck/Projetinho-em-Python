@@ -158,10 +158,14 @@ class App(tk.Tk):               # App É a janela principal (herda de tk.Tk)
         self.aplicar_tema_escuro()
         self.bib, self.buscador = Biblioteca(), BuscadorLivros()
 
-        # ==============dados de exemplo, aparece quando o programa abre==================
+        # ============== DADOS DE EXEMPLO, aparece quando o programa abre==================
         self.bib.cadastrar_livro("L1", "Dom Casmurro", "Machado de Assis")
         self.bib.cadastrar_livro("L2", "O Cortiço", "Aluísio Azevedo")
-        self.bib.cadastrar_usuario("U1", "Maria Silva")
+        self.bib.cadastrar_livro("L3", "As Cronicas de Narnia", "C. S. Lewis")
+
+        self.bib.cadastrar_usuario("U1", "Gabriel Mayck")
+        self.bib.cadastrar_usuario("U2", "Italo Pereira")
+        self.bib.cadastrar_usuario("U3", "Lucas Rock")
 
         # ---- ABAS (Livros / Usuários / Empréstimos) ----
         abas = ttk.Notebook(self)
@@ -195,7 +199,6 @@ class App(tk.Tk):               # App É a janela principal (herda de tk.Tk)
         st.configure("Treeview.Heading", background=BG, foreground=FG, relief="flat", font=("Segoe UI", 10, "bold")) # cabeçalho
 
         # >>>>>> ESTE LAÇO É O QUE DEIXA AZUL (DESTAQUE) <<<<<<
-
         # cor azul quando o item está selecionado / com o mouse em cima
         for estilo, estado in (("TNotebook.Tab", "selected"), ("TButton", "active"), ("Treeview", "selected")):
             st.map(estilo, background=[(estado, DESTAQUE)], foreground=[(estado, "white")])
